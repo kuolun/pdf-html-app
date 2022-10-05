@@ -237,7 +237,7 @@ class SearchHelper:
                 t.start()
                 print('thread starting..')
                 # 緩衝發送requests
-                time.sleep(0.5)
+                # time.sleep(0.5)
 
             # 發出多個thread, 等所有thread都跑完才執行後面程式碼
             for x in threads:
