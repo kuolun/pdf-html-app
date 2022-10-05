@@ -47,7 +47,6 @@ def hello_world():  # put application's code here
 
 @app.route('/search', methods=['POST'])
 def search_site():
-    print('search')
     d_name = request.form['device']
     p_code = request.form['product_code']
     print(d_name, p_code)
@@ -78,8 +77,6 @@ class SearchHelper:
         self.pdf_download_file = []  # 下載pdf存放url清單
 
     def find_text(self, search_file, search_string):
-        # xfile :  PDF file to search
-        # x_string :  string to search
         page_found = 0
 
         if not Path.exists(search_file):
@@ -94,7 +91,8 @@ class SearchHelper:
                 text = page.extract_text().lower()
                 res_search = search(search_string, text)
                 page_number = reader.get_page_number(page)
-                print(f'page:{page_number + 1}搜尋結果:{res_search}\n')
+                # if res_search:
+                #     print(f'page:{page_number + 1}搜尋結果:{res_search}\n')
                 # 找到第一次出現的頁數就跳出
                 if res_search is not None:
                     page_found = page_number + 1
@@ -104,12 +102,12 @@ class SearchHelper:
 
     def export_html(self):
         threads = []
-        print('轉換HTML中...')
+        # print('轉換HTML中...')
         for key in self.pdf_list:
             file = key
             file_path = Path(self.dest_dir) / f'{file}.pdf'
             print(f'檔案:{file}\n')
-            print(f'檔案路徑:{file_path}\n')
+            # print(f'檔案路徑:{file_path}\n')
             # 用多執行緒去跑self.pdf_to_table
             thread_obj = threading.Thread(
                 target=self.pdf_to_table,
@@ -132,8 +130,8 @@ class SearchHelper:
         current_thread = threading.current_thread()
 
         print(f'目前thread id:{current_thread.ident}')
-        print(f"轉換{file}為HTML中...\n")
-        print(f'檔案路徑:{file_path}')
+        # print(f"轉換{file}為HTML中...\n")
+        # print(f'檔案路徑:{file_path}')
 
         # 開始測量
         start = time.time()
@@ -203,8 +201,8 @@ class SearchHelper:
             # result = soup.find_all(align='Middle')
             search_result = soup.find_all(align='Middle')
 
-            print(f'result type:{type(search_result)}')
-            print(f'result:{search_result}')
+            # print(f'result type:{type(search_result)}')
+            # print(f'result:{search_result}')
 
             data_count = len(search_result)
 
@@ -222,7 +220,7 @@ class SearchHelper:
 
                 detail_page_url = DOMAIN + link.attrs['href']
 
-                print(detail_page_url)
+                # print(detail_page_url)
 
                 # 用多執行緒去跑
                 # 建立執行緒物件+傳入參數
@@ -243,8 +241,8 @@ class SearchHelper:
             for x in threads:
                 x.join()
 
-            print(f'PDF檔案清單:{self.pdf_list}')
-            print(f'PDF檔案URL清單:{self.pdf_download_file}')
+            # print(f'PDF檔案清單:{self.pdf_list}')
+            # print(f'PDF檔案URL清單:{self.pdf_download_file}')
 
             # 把PDF_list轉成HTML
             self.export_html()
@@ -262,7 +260,7 @@ class SearchHelper:
             file_zip = zipfile.ZipFile(f'static/downloads/{zip_file_name}', 'w')
             print(f'要壓縮的目錄:{self.dest_dir}')
             for name in glob.glob(f'{self.dest_dir}/*'):
-                print(name)
+                # print(name)
                 file_zip.write(name, os.path.basename(name), zipfile.ZIP_DEFLATED)
 
             file_zip.close()
@@ -280,7 +278,7 @@ class SearchHelper:
         # 若找不到result會拿到None
         result = soup.find(title=f'PDF for {id_key}')
 
-        print(f'尋找PDF檔案URL結果:{result}')
+        # print(f'尋找PDF檔案的下載URL結果:{result}')
 
         # 如果有找到pdf檔連結
         if result:
@@ -313,7 +311,7 @@ class SearchHelper:
             print(f'{detail_page_url}沒有PDF檔')
 
     def download_pdf(self, url):
-        print(f'下載PDF網址:{url}')
+        # print(f'下載PDF網址:{url}')
 
         # 設定存檔路徑及存檔名稱
         # https://www.accessdata.fda.gov/cdrh_docs/pdf22/K221259.pdf
@@ -321,8 +319,8 @@ class SearchHelper:
         # 組出存檔路徑
         file_name = Path(url).name
         file_path = Path.joinpath(self.dest_dir, file_name)
-        print(f'檔案名稱:{file_name}')
-        print(f'存放檔案位置:{file_path}')
+        # print(f'檔案名稱:{file_name}')
+        # print(f'存放檔案位置:{file_path}')
 
         # 開始測量
         start = time.time()
@@ -331,13 +329,13 @@ class SearchHelper:
 
         # 寫入檔案
         f = open(file_path, 'wb')
-        print(f'{file_path}下載中...')
+        # print(f'{file_path}下載中...')
 
         for chunk in pdf.iter_content(chunk_size=255):
             if chunk:  # filter out keep-alive new chunks
                 f.write(chunk)
 
-        print(f"{file_name}下載完畢!!")
+        # print(f"{file_name}下載完畢!!")
 
         f.close()
 
@@ -346,7 +344,7 @@ class SearchHelper:
         # 結束測量
         end = time.time()
         # 輸出結果
-        print(f"{file_name}下載時間：", round(end - start, 2))
+        # print(f"{file_name}下載時間：{round(end - start, 2)}")
 
         self.downloaded_pdf += 1
 
