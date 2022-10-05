@@ -9,3 +9,4 @@ pandas
 PyPDF2
 requests
 opencv-python
+opencv-python-headless
