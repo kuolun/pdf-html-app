@@ -30,5 +30,15 @@ $("#searchForm").submit(function(event) {
     $("#result").empty().append(data);
     // $("#result").append(content);
     // $("#result").html(content)
-  });
+  })
+
+//  display error message
+  posting.fail(function(jqXHR, textStatus) {
+    //再次隱藏spinner
+    $('#loading').css("display", "none");
+    console.log( "Request failed: " + textStatus );
+    $('.log').empty().append("Request failed: " + textStatus)
+  })
+
+
 });

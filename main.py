@@ -51,15 +51,19 @@ def search_site():
     p_code = request.form['product_code']
     print(d_name, p_code)
     helper = SearchHelper(d_name, p_code)
-    data_count, pdf_list, zip_file = helper.search_website()
-    return render_template(
-        'result.html',
-        d_name=d_name,
-        p_code=p_code,
-        data_count=data_count,
-        pdf_list=pdf_list,
-        zip_file=zip_file
-    )
+    try:
+        data_count, pdf_list, zip_file = helper.search_website()
+    except Exception as err:
+        print(f"search error:{err}")
+    else:
+        return render_template(
+            'result.html',
+            d_name=d_name,
+            p_code=p_code,
+            data_count=data_count,
+            pdf_list=pdf_list,
+            zip_file=zip_file
+        )
 
 
 class SearchHelper:
@@ -177,8 +181,12 @@ class SearchHelper:
 
         # 先清空static/downloads內所有檔案
         downloads_folder_path = Path.cwd() / 'static/downloads'
-        shutil.rmtree(downloads_folder_path)
-        os.mkdir(downloads_folder_path)
+        try:
+            shutil.rmtree(downloads_folder_path)
+        except Exception as err:
+            print(f"error message:{err}")
+        else:
+            os.mkdir(downloads_folder_path)
 
         self.url = f'{DOMAIN}/scripts/cdrh/cfdocs/cfpmn/pmn.cfm?' \
                    f'start_search=1&Panel=' \
