@@ -11,6 +11,7 @@ from PyPDF2 import PdfReader
 
 # table轉df
 import camelot
+
 # import pandas as pd
 from pandas import concat
 
@@ -47,10 +48,14 @@ def hello_world():  # put application's code here
 
 @app.route('/search', methods=['POST'])
 def search_site():
+    # 抓搜尋條件
     d_name = request.form['device']
     p_code = request.form['product_code']
     print(d_name, p_code)
+
+    # 設定共用變數
     helper = SearchHelper(d_name, p_code)
+
     try:
         data_count, pdf_list, zip_file = helper.search_website()
     except Exception as err:
@@ -67,7 +72,16 @@ def search_site():
 
 
 class SearchHelper:
+    # find_text
+    # export_html
+    # pdf_to_table
+    # search_website
+    # send_detail_page_request
+    # download_pdf
+
     def __init__(self, d_name: str, p_code: str):
+        # 搜尋到的資料筆數
+        self.search_data_count = 0
         # zip檔
         self.zip_file = None
         # 已下載pdf數量
@@ -106,8 +120,11 @@ class SearchHelper:
 
     def export_html(self):
         threads = []
-        # print('轉換HTML中...')
+        print('轉換HTML中...')
+        print(self.pdf_list)
+        print(self.dest_dir)
         for key in self.pdf_list:
+            print(key)
             file = key
             file_path = Path(self.dest_dir) / f'{file}.pdf'
             print(f'檔案:{file}\n')
@@ -176,12 +193,31 @@ class SearchHelper:
         else:
             print(f"{file}沒有comparison的table\n")
 
+    def make_zip_file(self):
+        zip_name = Path(self.dest_dir).parts[-1]  # 抓資料夾名稱當壓縮檔名稱
+        zip_file_name = f'{zip_name}.zip'
+
+        # zip檔位置預設會跟main.py在同一層
+        # ZipFile第一個參數:path to ZIP file(string)
+        # path必須要存在才不會有error
+        file_zip = zipfile.ZipFile(f'static/downloads/{zip_file_name}', 'w')
+        print(f'要壓縮的目錄:{self.dest_dir}')
+
+        for name in glob.glob(f'{self.dest_dir}/*'):
+            # print(name)
+            file_zip.write(name, os.path.basename(name), zipfile.ZIP_DEFLATED)
+
+        file_zip.close()
+
+        self.zip_file = f"static/downloads/{zip_file_name}"
+
     # 搜尋網站資料筆數
     def search_website(self) -> Tuple[int, List[Any], str]:
 
-        # 先清空static/downloads內所有檔案
+        # 抓download路徑
         downloads_folder_path = Path.cwd() / 'static/downloads'
         try:
+            # 每次search都先清空static/downloads內所有檔案
             shutil.rmtree(downloads_folder_path)
         except Exception as err:
             print(f"error message:{err}")
@@ -196,6 +232,12 @@ class SearchHelper:
         # 發送search request
         try:
             page = requests.get(self.url, timeout=10)
+            # 若只有一筆搜尋結果，畫面會顯示該筆的detail頁面
+            # 要用page.url去抓redirect後的url
+            # 如果page.history == [] 表示沒有redirect
+            print(page.history)
+            print(page.url)
+
             if page.status_code == 503:
                 page.raise_for_status()
         except requests.ReadTimeout:
@@ -205,27 +247,62 @@ class SearchHelper:
         else:
             soup = BeautifulSoup(page.text, features='lxml')
 
+            # 多筆/單筆/沒資料搜尋結果畫面不同要分開處理
+            # 只有一筆會直接顯示detail頁
+
             # 抓取所有要進入detail的連結如:k221259
             # result = soup.find_all(align='Middle')
+
+            # 從<td align="center" valign="bottom">看
+            # 如果文字有No records were found with表示搜尋不到
+            # 回傳self.search_data_count=0, self.pdf_list=[], self.zip_file=None
+            # 顯示重新輸入條件
+
+            # 確認是否沒search到資料
+            for tag in soup.find_all('td', {'align': 'center', 'valign': 'bottom'}):
+                for ele in tag.stripped_strings:
+                    print(ele)
+                    if ele == 'No records were found with':
+                        print('no match data')
+                        return self.search_data_count, self.pdf_list, self.zip_file
+
+            # 若執行到此表示有資料
+            # check是否為search到1筆或是多筆data
+
+            # 1筆的頁面內會有summary,多筆的不會有
+            # 搜尋Fibro-Gide會直接轉導到
+            # https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfPMN/pmn.cfm?ID=K171050
+            # 可用page.url取得
+            # 檢查頁面文字如果有summary表示只查到1筆
+            # 可直接用send_detail_page_request處理此頁面
+
+            for tag in soup.find_all('th', {'align': 'left'}):
+                for ele in tag.stripped_strings:
+                    # print(ele)
+                    if ele == 'Summary':
+                        print('only one record found')
+                        self.search_data_count = 1
+                        pdf_name = page.url[-7:]
+                        self.pdf_list.append(pdf_name)
+                        # 對pdf_url發送request
+                        self.send_detail_page_request(page.url, pdf_name)
+                        self.export_html()
+                        self.make_zip_file()
+                        return self.search_data_count, self.pdf_list, self.zip_file
+
+            # 有多筆data的處理(多執行緒)
+            # 找<td align="Middle">資料格，沒找到是回傳空字串
             search_result = soup.find_all(align='Middle')
-
-            # print(f'result type:{type(search_result)}')
-            # print(f'result:{search_result}')
-
-            data_count = len(search_result)
-
-            print(data_count)
+            self.search_data_count = len(search_result)
+            print(f'search data count:{self.search_data_count}')
 
             threads = []
 
             # 從搜尋到的多個連結，進入detail的連結中找到pdf url
             for item in search_result:
                 link = item.find('a')
-
                 id_key = link.getText()
-
                 self.pdf_list.append(id_key)
-
                 detail_page_url = DOMAIN + link.attrs['href']
 
                 # print(detail_page_url)
@@ -258,24 +335,10 @@ class SearchHelper:
             # 處理壓縮
             # 如果要將整個目錄壓縮, 需要將整個目錄讀取一次, 包括裡面的副目錄, 然後逐個檔案加入 zip 檔
             # os.walk()回傳3個值:dirName,sub_dirNames,fileNames
+            self.make_zip_file()
 
-            zip_name = Path(self.dest_dir).parts[-1]  # 抓資料夾名稱當壓縮檔名稱
-            zip_file_name = f'{zip_name}.zip'
-
-            # zip檔位置預設會跟main.py在同一層
-            # ZipFile第一個參數:path to ZIP file(string)
-            # path必須要存在才不會有error
-            file_zip = zipfile.ZipFile(f'static/downloads/{zip_file_name}', 'w')
-            print(f'要壓縮的目錄:{self.dest_dir}')
-            for name in glob.glob(f'{self.dest_dir}/*'):
-                # print(name)
-                file_zip.write(name, os.path.basename(name), zipfile.ZIP_DEFLATED)
-
-            file_zip.close()
-
-            self.zip_file = f'static/downloads/{zip_file_name}'
-
-            return data_count, self.pdf_list, self.zip_file
+            print(f'check:{self.search_data_count},{self.pdf_list},{self.zip_file}')
+            return self.search_data_count, self.pdf_list, self.zip_file
 
     def send_detail_page_request(self, detail_page_url, id_key):
         # 發送detail頁面 request
